@@ -1,0 +1,432 @@
+{% extends 'main/layout.html' %}
+
+{% block title %}Мониторинг{% endblock %}
+
+{% block content %}
+<div class="stages-container">
+    <div class="stages-list-container">
+        <h1 class="stages-list-title">Этапы строительства</h1>
+        <ul class="stages-list">
+            {% for stage in stages %}
+            <li class="stage-item {% if stage.should_highlight %}highlight{% endif %}">
+                <div class="stage-header">
+                    <span class="stage-name">{{ stage.name }}</span>
+                    <div class="stage-dates">
+                        <span>с {{ stage.start_date }}</span> —
+                        <span>по {{ stage.end_date }}</span>
+                    </div>
+                </div>
+
+                <button class="btn-toggle-info" onclick="toggleStageInfo({{ stage.id }})">Показать подробности</button>
+
+                <div id="stage-info-{{ stage.id }}" class="stage-info" style="display: none;">
+                    <div class="rating-section">
+                        <p><strong>Рейтинг:</strong>
+                            {% if stage.ratings.all %}
+                                {% for rating in stage.ratings.all %}
+                                    <span class="rating">{{ rating.rating }} звезд</span>
+                                {% endfor %}
+                            {% else %}
+                                <span>Нет рейтинга</span>
+                            {% endif %}
+                        </p>
+                    </div>
+
+                    <div class="status-container">
+                        <span class="stage-status">Статус: {{ stage.get_status_display }}</span>
+                        {% if stage.image %}
+                            <button type="button" onclick="openModal('{{ stage.image.url }}')" class="btn-view-image">Посмотреть изображение</button>
+                        {% endif %}
+                    </div>
+
+                    <div class="rating-form">
+                        <form method="POST" action="{% url 'rate_stage' stage.id %}">
+                            {% csrf_token %}
+                            <select name="rating" id="id_rating" required>
+                                <option value="">Выберите оценку</option>
+                                <option value="1">1 — Плохо</option>
+                                <option value="2">2 — Ниже среднего</option>
+                                <option value="3">3 — Нормально</option>
+                                <option value="4">4 — Хорошо</option>
+                                <option value="5">5 — Отлично</option>
+                            </select>
+
+                            <label for="id_comment">Комментарий:</label>
+                            <textarea name="comment" id="id_comment" rows="3"></textarea>
+
+                            <button type="submit" class="submit-button">Оценить</button>
+                        </form>
+                    </div>
+                </div>
+
+                {% if request.user.is_superuser %}
+                <div class="admin-actions">
+                    <form method="POST" action="{% url 'update_stage_status' stage.id %}">
+                        {% csrf_token %}
+                        <select name="status" onchange="this.form.submit()">
+                            <option value="not_started" {% if stage.status == 'not_started' %}selected{% endif %}>Не начато</option>
+                            <option value="in_progress" {% if stage.status == 'in_progress' %}selected{% endif %}>В процессе</option>
+                            <option value="completed" {% if stage.status == 'completed' %}selected{% endif %}>Завершено</option>
+                        </select>
+                    </form>
+                    <a href="{% url 'upload_stage_image' stage.id %}" class="upload-image-link">Загрузить изображение</a>
+                </div>
+                {% endif %}
+            </li>
+            {% empty %}
+            <li class="no-stages">Нет этапов для отображения.</li>
+            {% endfor %}
+        </ul>
+
+        {% if request.user.is_superuser %}
+            <a href="{% url 'add_stage' %}" class="print-report-button">Добавить Этап</a>
+            <button onclick="printReport()" class="print-report-button">Сформировать отчет</button>
+        {% endif %}
+
+        {% if no_deferred_stages and request.GET.status == 'deferred' %}
+        <p class="no-deferred-stages-message">Нет этапов со статусом "Не начато".</p>
+        {% endif %}
+    </div>
+
+    <div class="timeline-container">
+        <form method="GET" action="{% url 'index' %}" class="filter-form">
+            <label for="status" class="filter-label">Фильтр по статусу:</label>
+            <select name="status" id="status" class="filter-select" onchange="this.form.submit()">
+                <option value="">Все</option>
+                <option value="in_progress" {% if request.GET.status == 'in_progress' %}selected{% endif %}>В процессе</option>
+                <option value="completed" {% if request.GET.status == 'completed' %}selected{% endif %}>Завершено</option>
+                <option value="not_started" {% if request.GET.status == 'not_started' %}selected{% endif %}>Не начато</option>
+            </select>
+        </form>
+
+        {{ gantt_chart_html|safe }}
+
+        <div class="pie-chart-container">
+            <canvas id="myPieChart"></canvas>
+        </div>
+
+        <div class="status-bar-chart-container">
+            {{ status_bar_chart_html|safe }}
+        </div>
+
+        <div class="rating-chart">
+            {{ stage_rating_chart_html|safe }}
+        </div>
+    </div>
+
+</div>
+
+<div id="imageModal" class="modal" style="display: none;">
+    <span class="close" onclick="closeModal()">&times;</span>
+    <img class="modal-content" id="modalImage">
+    <div id="caption"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const statusCounts = {{ status_counts|safe }};
+    const ctx = document.getElementById('myPieChart').getContext('2d');
+    const myPieChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: ['Не начато', 'В процессе', 'Завершено'],
+            datasets: [{
+                label: 'Распределение этапов',
+                data: [
+                    statusCounts['Не начато'] || 0,
+                    statusCounts['В процессе'] || 0,
+                    statusCounts['Завершено'] || 0
+                ],
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.6)',
+                    'rgba(54, 162, 235, 0.6)',
+                    'rgba(75, 192, 192, 0.6)'
+                ],
+                borderColor: [
+                    'rgba(255, 99, 132, 1)',
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(75, 192, 192, 1)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(tooltipItem) {
+                            return tooltipItem.label + ': ' + tooltipItem.raw;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    function openModal(imageUrl) {
+        var modal = document.getElementById("imageModal");
+        var modalImage = document.getElementById("modalImage");
+        modal.style.display = "block";
+        modalImage.src = imageUrl;
+    }
+
+    function closeModal() {
+        var modal = document.getElementById("imageModal");
+        modal.style.display = "none";
+    }
+
+    function toggleStageInfo(stageId) {
+        var stageInfo = document.getElementById('stage-info-' + stageId);
+        if (stageInfo.style.display === 'none') {
+            stageInfo.style.display = 'block';
+        } else {
+            stageInfo.style.display = 'none';
+        }
+    }
+
+    function printReport() {
+    var printWindow = window.open('', '', 'height=900,width=1200');
+
+    printWindow.document.write('<html><head><title>Отчет о строительстве</title>');
+    printWindow.document.write('<style>');
+    printWindow.document.write('body { font-family: Arial, sans-serif; margin: 20px; }');
+    printWindow.document.write('h2 { color: #333; border-bottom: 2px solid #4CAF50; padding-bottom: 4px; }');
+    printWindow.document.write('.section { margin-bottom: 30px; }');
+    printWindow.document.write('table { width: 100%; border-collapse: collapse; margin-top: 10px; }');
+    printWindow.document.write('th, td { border: 1px solid #ccc; padding: 8px; font-size: 12px; text-align: left; }');
+    printWindow.document.write('th { background-color: #f2f2f2; }');
+    printWindow.document.write('</style>');
+    printWindow.document.write('</head><body>');
+
+    // Задачи
+printWindow.document.write('<div class="section"><h2>Задачи</h2>');
+printWindow.document.write('<table border="1" cellspacing="0" cellpadding="4">');
+printWindow.document.write('<tr><th>ID</th><th>Заплан. начало</th><th>Факт. начало</th><th>Заплан. конец</th><th>Факт. конец</th><th>Отклонение начала</th><th>Отклонение конца</th><th>% выполнения</th></tr>');
+{% for task in tasks %}
+    printWindow.document.write('<tr>');
+    printWindow.document.write('<td>{{ task.id }}</td>');
+    printWindow.document.write('<td>{{ task.planned_start_date }}</td>');
+    printWindow.document.write('<td>{{ task.actual_start_date|default:"—" }}</td>');
+    printWindow.document.write('<td>{{ task.planned_end_date }}</td>');
+    printWindow.document.write('<td>{{ task.actual_end_date|default:"—" }}</td>');
+    printWindow.document.write('<td>{{ task.start_deviation|default:"—" }}</td>');
+    printWindow.document.write('<td>{{ task.end_deviation|default:"—" }}</td>');
+    printWindow.document.write('<td>{{ task.execution_percentage|floatformat:0|default:"—" }}%</td>');
+    printWindow.document.write('</tr>');
+{% empty %}
+    printWindow.document.write('<tr><td colspan="9">Нет задач</td></tr>');
+{% endfor %}
+printWindow.document.write('</table></div>');
+
+    // Этапы
+    printWindow.document.write('<div class="section"><h2>Этапы строительства</h2>');
+    printWindow.document.write('<table>');
+    printWindow.document.write('<tr><th>Название</th><th>Период</th><th>Статус</th><th>Оценка</th></tr>');
+    {% for stage in stages %}
+        printWindow.document.write('<tr>');
+        printWindow.document.write('<td>{{ stage.name }}</td>');
+        printWindow.document.write('<td>с {{ stage.start_date }} по {{ stage.end_date }}</td>');
+        printWindow.document.write('<td>{{ stage.get_status_display }}</td>');
+        if ({{ stage.ratings.all|length }} > 0) {
+            printWindow.document.write('<td>');
+            {% for rating in stage.ratings.all %}
+                printWindow.document.write('{{ rating.rating }}⭐<br>');
+            {% endfor %}
+            printWindow.document.write('</td>');
+        } else {
+            printWindow.document.write('<td>Нет</td>');
+        }
+        printWindow.document.write('</tr>');
+    {% endfor %}
+    printWindow.document.write('</table></div>');
+
+    // Материалы
+    printWindow.document.write('<div class="section"><h2>Материалы</h2>');
+    printWindow.document.write('<table>');
+    printWindow.document.write('<tr><th>Этап</th><th>Название материала</th><th>Кол-во по плану</th><th>Кол-во по факту</th><th>Цена за еденицу</th></tr>');
+    {% for material in materials %}
+        printWindow.document.write('<tr>');
+        printWindow.document.write('<td>{{ material.stage.name }}</td>');
+        printWindow.document.write('<td>{{ material.material }}</td>');
+        printWindow.document.write('<td>{{ material.planned_quantity  }}</td>');
+        printWindow.document.write('<td>{{ material.actual_quantity }}</td>');
+        printWindow.document.write('<td>{{ material.unit_price}}</td>');
+        printWindow.document.write('</tr>');
+    {% empty %}
+        printWindow.document.write('<tr><td colspan="4">Нет данных по материалам</td></tr>');
+    {% endfor %}
+    printWindow.document.write('</table></div>');
+
+    // Обратная связь
+    // Обратная связь
+printWindow.document.write('<div class="section"><h2>Обратная связь</h2>');
+printWindow.document.write('<table border="1" cellspacing="0" cellpadding="4">');
+printWindow.document.write('<tr><th>Имя</th><th>Email</th><th>Сообщение</th><th>Дата</th></tr>');
+{% for fb in feedbacks %}
+    printWindow.document.write('<tr>');
+    printWindow.document.write('<td>{{ fb.name }}</td>');
+    printWindow.document.write('<td>{{ fb.email }}</td>');
+    printWindow.document.write('<td>{{ fb.message }}</td>');
+    printWindow.document.write('<td>{{ fb.timestamp|date:"d.m.Y H:i" }}</td>');
+    printWindow.document.write('</tr>');
+{% empty %}
+    printWindow.document.write('<tr><td colspan="4">Нет сообщений</td></tr>');
+{% endfor %}
+printWindow.document.write('</table></div>');
+    printWindow.document.close();
+
+    printWindow.print();
+}
+</script>
+
+<style>
+    .print-report-button {
+    padding: 10px 20px;
+    font-size: 14px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    margin-right: 20px;
+    margin-left: 20px;
+}
+    .stages-container {
+        display: flex;
+        flex-direction: row;
+        gap: 15px;
+        padding: 10px;
+    }
+
+    .stages-list-container {
+        width: 100%;
+        max-width: 700px;
+    }
+
+    .stages-list-title {
+        font-size: 12px;
+        margin-bottom: 10px;
+        text-align: center;
+    }
+
+    .stage-item {
+        background-color: #f9f9f9;
+        border-radius: 6px;
+        padding: 6px 8px;
+        margin-bottom: 10px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+        font-size: 12px;
+    }
+
+    .highlight {
+        background-color: #ffe6e6;
+    }
+
+    .stage-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 4px;
+    }
+
+    .stage-name {
+        font-weight: bold;
+        font-size: 13px;
+    }
+
+    .stage-dates {
+        font-size: 11px;
+        color: #666;
+    }
+
+    .rating-section p {
+        margin: 2px 0;
+        font-size: 11px;
+    }
+
+    .rating {
+        font-weight: bold;
+        color: #ffaa00;
+    }
+
+    .status-container {
+        margin-top: 4px;
+    }
+
+    .btn-view-image {
+        padding: 4px 8px;
+        background: #4CAF50;
+        color: #fff;
+        font-size: 10px;
+        border: none;
+        border-radius: 3px;
+        cursor: pointer;
+        margin-top: 2px;
+    }
+
+    .rating-form {
+        margin-top: 5px;
+    }
+
+    .rating-form select, .rating-form textarea {
+        width: 100%;
+        padding: 4px;
+        margin: 2px 0;
+        font-size: 11px;
+        border-radius: 3px;
+        border: 1px solid #ccc;
+    }
+
+    .submit-button {
+        background-color: #007bff;
+        color: white;
+        padding: 5px 10px;
+        font-size: 11px;
+        border: none;
+        border-radius: 3px;
+        cursor: pointer;
+        margin-top: 5px;
+    }
+
+    .submit-button:hover {
+        background-color: #0056b3;
+    }
+
+    .filter-form {
+        margin-bottom: 10px;
+    }
+
+    .filter-select {
+        padding: 4px;
+        font-size: 11px;
+        border-radius: 3px;
+    }
+
+    .upload-image-link {
+        display: inline-block;
+        padding: 5px 8px;
+        background-color: #007bff;
+        color: white;
+        font-size: 11px;
+        text-decoration: none;
+        border-radius: 3px;
+        margin-top: 5px;
+    }
+
+    .upload-image-link:hover {
+        background-color: #0056b3;
+    }
+
+    .no-deferred-stages-message {
+        color: #d00;
+        font-size: 12px;
+    }
+</style>
+
+{% endblock %}

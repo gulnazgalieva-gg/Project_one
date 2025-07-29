@@ -1,0 +1,60 @@
+{% extends 'main/layout.html' %}
+
+{% block title %}Мониторинг бюджета{% endblock %}
+
+{% block content %}
+<div class="container">
+    {% if request.user.is_superuser %}
+    <h2>Добавить новый бюджет</h2>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Добавить бюджет</button>
+    </form>
+    {% endif %}
+
+    <div class="block block-budget">
+        <h2>Бюджет</h2>
+        {% if budgets %}
+        {% for budget in budgets %}
+        <div class="budget">
+            <div class="budget-details">
+                <div class="value">
+                    <div class="label">Плановые расходы:</div>
+                    <div>{{ budget.planned_cost }}</div>
+                </div>
+                <div class="value">
+                    <div class="label">Фактические расходы:</div>
+                    <div>{{ budget.actual_cost }}</div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p>Нет доступных бюджетов.</p>
+        {% endif %}
+    </div>
+
+    <div class="block block-deviation">
+        <h2>Отклонения</h2>
+        {% if budgets %}
+        {% for budget in budgets %}
+        <div class="deviation">
+            <div class="deviation-details">
+                <div class="value">
+                    <div class="label">Отклонение (сумма):</div>
+                    <div class="deviation">{{ budget.deviation_amount }}</div>
+                </div>
+                <div class="value">
+                    <div class="label">Отклонение (процент):</div>
+                    <div class="deviation">{{ budget.deviation_percentage|floatformat:2 }}%</div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p>Нет доступных отклонений.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,235 @@
+{% extends 'main/layout.html' %}
+
+{% block title %}Материалы{% endblock %}
+
+{% block content %}
+<h1 class="mb-4"></h1>
+{% if request.user.is_superuser %}
+<!-- Форма фильтрации -->
+<form method="get" class="row g-3 mb-4">
+    <div class="col-md-4">
+        <label class="form-label">Фильтр по этапу:</label>
+        <select name="stage" class="form-select">
+            <option value="">Все этапы</option>
+            {% for stage in stages %}
+                <option value="{{ stage.id }}" {% if selected_stage == stage.id|stringformat:"s" %}selected{% endif %}>{{ stage.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Фильтр по материалу:</label>
+        <select name="material" class="form-select">
+            <option value="">Все материалы</option>
+            {% for material in materials_list %}
+                <option value="{{ material.id }}" {% if selected_material == material.id|stringformat:"s" %}selected{% endif %}>{{ material.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-4 d-flex align-items-end">
+        <button type="submit" class="btn btn-primary me-2">Применить</button>
+        <a href="{% url 'resources:materials' %}" class="btn btn-secondary">Сбросить</a>
+    </div>
+</form>
+
+<!-- Форма добавления -->
+<div class="card mb-4">
+    <div class="card-header">Добавить материал к этапу</div>
+    <div class="card-body">
+        <form method="POST">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit" class="btn btn-success">Сохранить</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<!-- Таблица -->
+<h2 class="mb-3"></h2>
+<div class="table-responsive">
+    <table class="table table-bordered table-striped align-middle text-center">
+        <thead class="table-dark">
+            <tr>
+                <th>Этап</th>
+                <th>Материал</th>
+                <th>План (кол-во)</th>
+                <th>Факт (кол-во)</th>
+                <th>Цена за единицу</th>
+                <th>Плановая стоимость</th>
+                <th>Фактическая стоимость</th>
+                <th>Недостача</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in materials %}
+                <tr class="{% if item.shortage > 0 %}table-warning{% elif item.shortage < 0 %}table-success{% endif %}">
+                    <td>{{ item.stage.name }}</td>
+                    <td>{{ item.material.name }}</td>
+                    <td>{{ item.planned_quantity }}</td>
+                    <td>{{ item.actual_quantity }}</td>
+                    <td>{{ item.unit_price }} ₽</td>
+                    <td>{{ item.total_planned_cost }} ₽</td>
+                    <td>{{ item.total_actual_cost }} ₽</td>
+                    <td>
+                        {% if item.shortage > 0 %}
+                            -{{ item.shortage }}
+                        {% elif item.shortage < 0 %}
+                            +{{ item.shortage|floatformat:2 }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="8">Нет данных</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12 col-md-6">
+        <div class="border rounded p-3 bg-light text-center">
+            <div class="fw-semibold text-muted">Общая плановая стоимость</div>
+            <div class="fs-5">{{ total_required_cost|floatformat:2 }} ₽</div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6">
+        <div class="border rounded p-3 bg-light text-center">
+            <div class="fw-semibold text-muted">Сумма недостачи</div>
+            <div class="fs-5">
+                {% if shortage_total > 0 %}
+                    <span class="text-danger">{{ shortage_total|floatformat:2 }} ₽</span>
+                {% else %}
+                    <span class="text-muted">— Нет недостачи</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Контейнер для двух графиков -->
+<div class="d-flex justify-content-center gap-4 mt-4" style="height: 400px;">
+
+  <!-- Первый график -->
+  <div class="card shadow-sm p-3 bg-light rounded" style="flex: 1;">
+    <h5 class="text-center text-muted fw-semibold mb-3">Плановое и фактическое количество материалов</h5>
+    <canvas id="materialsChart" style="height: 100%;"></canvas>
+  </div>
+
+  <!-- Второй график -->
+  <div class="card shadow-sm p-3 bg-light rounded" style="flex: 1;">
+    <h5 class="text-center text-muted fw-semibold mb-3">Сравнение расхода материалов по этапам строительства</h5>
+    <canvas id="stagesChart" style="height: 100%;"></canvas>
+  </div>
+
+</div>
+
+<!-- Подключение Chart.js -->
+<!-- Chart.js библиотека -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    // Первый график — по материалам
+    const ctxMaterials = document.getElementById('materialsChart').getContext('2d');
+    const materialsChart = new Chart(ctxMaterials, {
+        type: 'bar',
+        data: {
+            labels: {{ chart_labels|safe }},
+            datasets: [
+                {
+                    label: 'План (кол-во)',
+                    data: {{ chart_planned|safe }},
+                    backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Факт (кол-во)',
+                    data: {{ chart_actual|safe }},
+                    backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                    backgroundColor: '#f8f9fa',
+                    titleColor: '#212529',
+                    bodyColor: '#212529',
+                    borderColor: '#ced4da',
+                    borderWidth: 1
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'Количество' }
+
+                },
+                x: {
+                    title: { display: true, text: 'Материалы' }
+                }
+            }
+        }
+    });
+
+    // Второй график — по этапам
+    const ctxStages = document.getElementById('stagesChart').getContext('2d');
+    const stagesChart = new Chart(ctxStages, {
+        type: 'line',
+        data: {
+            labels: {{ stage_chart_labels|safe }},
+            datasets: [
+                {
+                    label: 'План (кол-во)',
+                    data: {{ stage_chart_planned|safe }},
+                    borderColor: 'rgba(255, 159, 64, 1)',
+                    backgroundColor: 'rgba(255, 159, 64, 0.2)',
+                    fill: true,
+                    tension: 0.3
+                },
+                {
+                    label: 'Факт (кол-во)',
+                    data: {{ stage_chart_actual|safe }},
+                    borderColor: 'rgba(153, 102, 255, 1)',
+                    backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                    fill: true,
+                    tension: 0.3
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                    backgroundColor: '#f8f9fa',
+                    titleColor: '#212529',
+                    bodyColor: '#212529',
+                    borderColor: '#ced4da',
+                    borderWidth: 1
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'Количество' }
+                },
+                x: {
+                    title: { display: true, text: 'Этапы строительства' }
+                }
+            }
+        }
+    });
+</script>
+
+{% endblock %}

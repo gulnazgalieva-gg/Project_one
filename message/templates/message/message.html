@@ -1,0 +1,57 @@
+{% extends 'main/layout.html' %}
+
+{% block title %}Обратная связь{% endblock %}
+
+{% block content %}
+<div class="feedback-page">
+    <div class="feedback-section">
+        <h1>Обратная связь</h1>
+        <p>Оставьте ваше сообщение, и мы свяжемся с вами в ближайшее время.</p>
+
+        {% if messages %}
+            <div class="notification-area">
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <form method="post" class="feedback-form">
+            {% csrf_token %}
+            {% for field in form %}
+                <div class="form-item">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}
+                        <div class="error-message">
+                            {% for error in field.errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+            <button type="submit" class="submit-button btn btn-primary">Отправить</button>
+        </form>
+    </div>
+
+    {% if user.is_superuser %}
+    <div class="admin-message-section">
+        <h2>Сообщения:</h2>
+        {% if feedbacks %}
+            {% for feedback in feedbacks %}
+                <div class="feedback-card mb-3">
+                    <div class="card-content">
+                        <h5 class="card-title">{{ feedback.name }}</h5>
+                        <h6 class="card-subtitle mb-2 text-muted">{{ feedback.email }} - {{ feedback.timestamp }}</h6>
+                        <p class="card-text">{{ feedback.message|linebreaksbr }}</p>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>Пока нет сообщений.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

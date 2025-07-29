@@ -1,0 +1,158 @@
+{% extends 'main/layout.html' %}
+
+{% block title %}Мониторинг{% endblock %}
+
+{% block content %}
+<div class="main-container">
+    <div class="flex-container">
+        <!-- Блок 1: Начало работ -->
+        <div class="block block1">
+            <h2>Начало работ</h2>
+            {% if tasks %}
+                {% for task in tasks %}
+                    <div class="task">
+                        <div class="task-details">
+                            <div class="value">
+                                <div class="label">План:</div>
+                                <div>{{ task.planned_start_date }}</div>
+                            </div>
+                            <div class="value">
+                                <div class="label">Факт:</div>
+                                <div>{{ task.actual_start_date }}</div>
+                            </div>
+                        </div>
+                        <div class="deviation-container">
+                            <div class="label">Отклонение (дни):</div>
+                            <div class="deviation">{{ task.start_deviation }}</div>
+                        </div>
+                        {% if request.user.is_superuser %}
+                            <form method="post" action="{% url 'times_home' %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="task_id" value="{{ task.id }}">
+                                <button type="submit" onclick="return confirm('Вы уверены, что хотите удалить эту задачу?');">
+                                    Удалить
+                                </button>
+                            </form>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p>Нет задач.</p>
+            {% endif %}
+        </div>
+
+        <!-- Блок 2: Окончание работ -->
+        <div class="block block2">
+            <h2>Окончание работ</h2>
+            {% if tasks %}
+                {% for task in tasks %}
+                    <div class="task">
+                        <div class="task-details">
+                            <div class="value">
+                                <div class="label">План:</div>
+                                <div>{{ task.planned_end_date }}</div>
+                            </div>
+                            <div class="value">
+                                <div class="label">Факт:</div>
+                                <div>{{ task.actual_end_date }}</div>
+                            </div>
+                        </div>
+                        <div class="deviation-container">
+                            <div class="label">Отклонение (дни):</div>
+                            <div class="deviation">{{ task.end_deviation }}</div>
+                        </div>
+                        {% if request.user.is_superuser %}
+                            <form method="post" action="{% url 'times_home' %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="task_id" value="{{ task.id }}">
+                                <button type="submit" onclick="return confirm('Вы уверены, что хотите удалить эту задачу?');">
+                                    Удалить
+                                </button>
+                            </form>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p>Нет задач.</p>
+            {% endif %}
+
+            <!-- Кнопка добавления задачи -->
+            {% if request.user.is_superuser %}
+                <button id="openModalBtn" class="add-task-button" style="margin-top: 15px;">Добавить новую задачу</button>
+            {% endif %}
+
+            <!-- Модальное окно -->
+            <div id="myModal" class="modal">
+                <div class="modal-content">
+                    <span class="close">&times;</span>
+                    {% if request.user.is_superuser %}
+                        <h2>Добавить новую задачу</h2>
+                        <form method="post">
+                            {% csrf_token %}
+                            {{ form.as_p }}
+                            <button type="submit">Добавитььь задачу</button>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if tasks %}
+    <!-- График + слайдер, если есть задачи -->
+    <div style="display: flex; align-items: stretch; gap: 20px; height: auto; margin-top: 20px; margin-left: 20px;">
+        <!-- График -->
+        <div style="flex: 1; background-color: #f0f0f0; padding: 15px; border-radius: 8px;">
+            <div class="gantt-chart-wrapper">
+                <div class="gantt-chart-container">
+                    {{ gantt_chart_html|safe }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Слайдер и форма загрузки -->
+        <div style="flex: 0 0 40%; max-width: 520px; padding: 15px; background-color: #f9f9f9; border-radius: 8px; box-sizing: border-box;">
+            <!-- Слайдер -->
+            <div class="slider" style="display: flex; flex-direction: column; align-items: center; max-height: 400px; margin-bottom: 20px;">
+                {% for photo in photos %}
+                    <div style="flex: none; width: 100%; display: flex; justify-content: center; margin-bottom: 10px;">
+                        <img src="{{ photo.image.url }}" alt="Photo {{ photo.id }}"
+                             style="max-width: 100%; max-height: 350px; object-fit: contain; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
+                    </div>
+                {% endfor %}
+            </div>
+
+            <!-- Форма загрузки -->
+            <div style="border-top: 1px solid #ccc; padding-top: 15px;">
+                <form method="post" enctype="multipart/form-data" style="display: flex; flex-direction: column; gap: 10px;">
+                    {% csrf_token %}
+                    <label style="font-weight: bold; font-size: 16px;">Добавить изображение:</label>
+                    {{ form_photo.image }}
+                    <button type="submit"
+                            style="padding: 10px 15px; background-color: #4CAF50; color: white; border: none; border-radius: 6px; cursor: pointer; transition: background-color 0.3s;">
+                        Загрузить
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    // Модальное окно
+    const modal = document.getElementById("myModal");
+    const btn = document.getElementById("openModalBtn");
+    const span = document.getElementsByClassName("close")[0];
+
+    if (btn && modal && span) {
+        btn.onclick = () => modal.style.display = "block";
+        span.onclick = () => modal.style.display = "none";
+        window.onclick = event => {
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        };
+    }
+</script>
+{% endblock %}

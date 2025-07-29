@@ -1,0 +1,31 @@
+{% extends 'main/layout.html' %}
+
+{% block title %}Добавить Этап{% endblock %}
+
+{% block content %}
+<div class="container d-flex justify-content-center align-items-center" style="min-height: 85vh;">
+    <div class="card shadow-lg border-0 rounded-4 p-4" style="width: 100%; max-width: 550px;">
+        <h2 class="text-center mb-4 fw-bold text-primary">Добавление этапа строительства</h2>
+
+        <form method="POST" novalidate>
+            {% csrf_token %}
+            {% for field in form %}
+                <div class="mb-3">
+                    <label for="{{ field.id_for_label }}" class="form-label fw-semibold">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}
+                        <div class="text-danger small mt-1">
+                            {{ field.errors|striptags }}
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+            <button type="submit" class="btn btn-success w-100 py-2 mt-2">💾 Сохранить этап</button>
+        </form>
+
+        <div class="text-center mt-4">
+            <a href="{% url 'index' %}" class="text-decoration-none text-secondary">← Назад к списку этапов</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,10 @@
+python manage.py makemigrations stages{% extends 'main/layout.html' %}
+
+{% block content %}
+<hr>
+<form action="{% url 'register' %}" method="post">
+    {{ form }}
+    {% csrf_token %}
+    <button type="submit" class="btn btn-success">submit</button>
+</form>
+{% endblock %}
