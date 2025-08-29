@@ -31,7 +31,7 @@
     </div>
 </form>
 
-<!-- Форма добавления -->
+
 <div class="card mb-4">
     <div class="card-header">Добавить материал к этапу</div>
     <div class="card-body">
@@ -44,7 +44,7 @@
 </div>
 {% endif %}
 
-<!-- Таблица -->
+
 <h2 class="mb-3"></h2>
 <div class="table-responsive">
     <table class="table table-bordered table-striped align-middle text-center">
@@ -110,16 +110,15 @@
     </div>
 </div>
 
-<!-- Контейнер для двух графиков -->
 <div class="d-flex justify-content-center gap-4 mt-4" style="height: 400px;">
 
-  <!-- Первый график -->
+
   <div class="card shadow-sm p-3 bg-light rounded" style="flex: 1;">
     <h5 class="text-center text-muted fw-semibold mb-3">Плановое и фактическое количество материалов</h5>
     <canvas id="materialsChart" style="height: 100%;"></canvas>
   </div>
 
-  <!-- Второй график -->
+
   <div class="card shadow-sm p-3 bg-light rounded" style="flex: 1;">
     <h5 class="text-center text-muted fw-semibold mb-3">Сравнение расхода материалов по этапам строительства</h5>
     <canvas id="stagesChart" style="height: 100%;"></canvas>
@@ -127,12 +126,11 @@
 
 </div>
 
-<!-- Подключение Chart.js -->
-<!-- Chart.js библиотека -->
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
-    // Первый график — по материалам
+
     const ctxMaterials = document.getElementById('materialsChart').getContext('2d');
     const materialsChart = new Chart(ctxMaterials, {
         type: 'bar',
@@ -181,7 +179,7 @@
         }
     });
 
-    // Второй график — по этапам
+
     const ctxStages = document.getElementById('stagesChart').getContext('2d');
     const stagesChart = new Chart(ctxStages, {
         type: 'line',
